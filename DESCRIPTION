@@ -1,0 +1,26 @@
+Package: clog
+Type: Package
+Title: cleaning log operations
+Version: 0.1.0
+Author: Martin Barner
+Maintainer: Martin Barner <martin.barner@impact-initiatives.org>
+Description: translate between raw and clean data based on value-by-value data cleaning logs
+License: GPL-3
+Encoding: UTF-8
+LazyData: true
+Imports: 
+    dplyr,
+    tidyr,
+    knitr,
+    magrittr,
+    purrr,
+    rlang,
+    tibble,
+    crayon
+RoxygenNote: 6.1.1
+Suggests: 
+    testthat,
+    rmarkdown
+Depends: 
+    assertthat
+VignetteBuilder: knitr

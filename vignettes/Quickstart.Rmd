@@ -1,0 +1,156 @@
+---
+title: "Quickstart"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{Quickstart}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  warning=FALSE, 
+  message=FALSE
+)
+
+print.nicedf<-function(x){
+  knitr::kable(x,format = "html")
+}
+
+```
+
+```{r setup}
+library(clog)
+library(dplyr)
+```
+
+## Overview
+
+
+
+
+
+## Input Example
+
+```{r,include=FALSE}
+my_cleaninglog<-data.frame(rowids = c("x8749f4", "f839jzz", "hla84s"),
+                           dataset_variables = c("var_A","var_A","var_B"),
+                           changed_to = c("maybe","no", NA),
+                           found_via = c("manual inspection","manual inspection","manual inspection"),
+                           stringsAsFactors = F)
+
+my_dataset<-data.frame(uuid= c("x8749f4", "f839jzz", "hla84s","d88f30","bkoe4u"),
+                   var_A = c("yes","yes","no","no","yes"),
+                   var_B = c(10,20,30,40,50),
+                   enumerator_id = c("Z","Z","X","Y","Y"),
+                   stringsAsFactors = F)
+
+```
+
+### cleaning log
+
+A cleaning log is a table in which each row represents a change to one specific value in a dataset. It must contain:
+
+- a column with the names of the variables in the dataset that each change relates to
+- a name for the type of change (for example the name of a check that originally flagged the value to be changed)
+- a column with an ID matching a unique value in a variable in the dataset
+
+Example:
+
+```{r}
+my_cleaninglog
+```
+
+### Dataset
+
+For this to be usable, we need to know in addition **the name of the variable in the dataset (in quotes!) that matches the ids noted in the cleaninglog**
+
+Example dataset: 
+```{r}
+my_dataset
+
+```
+
+Here, the "uuid" column in the dataset is unique and can be matched with the values in the "rowids" of the cleaning log.
+
+## Applying a Cleaning log
+
+### creating a standardised cleaninglog object
+
+First we need to tell R that we are dealing with a cleaninglog, and what relates to what in the components mentioned above. We create a 'standardised' cleaninglog object with `cleaninglog()`:
+
+```{r}
+my_cleaninglog <- cleaninglog(ids = my_cleaninglog$rowids,
+                              variables = my_cleaninglog$dataset_variables,
+                              new_values = my_cleaninglog$changed_to,
+                              name = my_cleaninglog$found_via,
+                              data_id_column_name = "uuid")
+```
+
+Note that each parameter takes a vector of the same length; here we take them from a cleaninglog dataset that could for example come from a csv file. Only the parameters `data_id_column_name` must be the _name_ of a variable in the dataset - not the cleaninglog itselft - as a string. For details, run `?cleaninglog`.
+
+Here's what we get:
+
+```{r}
+my_cleaninglog
+```
+
+The cleaninglog didn't change much from our original cleaninglog dataframe, but has standardised column headers, and secretly remembers which column in the dataset it should look for the row ids.
+
+### Modify data based on cleaning log
+
+Now we can change the dataset based on the cleaninglog:
+
+```{r}
+
+cleaned_data <- clog_clean(my_dataset,my_cleaninglog)
+```
+see the difference:
+```{r}
+my_dataset
+
+cleaned_data
+```
+
+## Cleaned data memory
+
+The cleaned dataset "remembers" the changes made, so the cleaned data can be reversed and can reproduce the cleaning log(s) that was used to modify it:
+
+```{r}
+clog_reverse(cleaned_data)
+```
+
+
+```{r}
+clog_get_cleaninglog(cleaned_data)
+```
+
+## Moving information between cleaninglog and data
+
+Apart from modifying the dataset, sometimes we want to move information between the cleaning log and the data (usually as part of the follow up process).
+
+### Adding data to a cleaninglog
+
+You can append variables from the data to the cleaninglog - often useful to follow up on values based on some metadata:
+
+```{r}
+my_dataset %>% clog_data_to_cleaninglog(my_cleaninglog,enumerator_id)
+
+```
+
+Note that `enumerator_id` is a data variable passed _without quotes_.
+
+### Attaching cleaning log entries to datasets
+
+In "reverse" of the above, we can add information from the cleaninglog to the dataset as "check" columns, indicating for each row wether a certain issue has been found, or whether a certain type of change was made. Each cleaning log check name now becomes a new logical column in the dataset that is set to `TRUE` for all rows where the cleaning log contained a matching row with an issue with that name:
+
+```{r}
+clog_cleaninglog_to_data(my_dataset,my_cleaninglog)
+
+```
+
+In this case there is only one 'type' of issue (called "manual inspection")

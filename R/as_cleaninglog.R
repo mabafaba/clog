@@ -1,0 +1,171 @@
+
+#' create standardised cleaninglog
+#' @param ids vector of ids that can be matched with the dataset (i.e. uuids)
+#' @param variabels vector of variable names (should match data column headers)
+#' @param new_values vector of new (corrected) values. If no change should be made, this must be set to the original value
+#' @param data_id_column_name the name of the column in the dataset with ids matching the values in `ids`
+#' @param info (optional): a character vector with additional information about the cleaning log
+#' @param name a vector name of the data check that produced the
+#' @param ... additional vectors or data.frames to be added to the cleaning log.
+#' @return a `clog` cleaninglog objects to be used with `clog_clean()` etc.
+#' @export
+cleaninglog <- function(ids, variables, new_values, data_id_column_name,name = "default_cleaninglog_element_name",info=NULL,...) {
+
+  assert_that(length(ids)==length(variables))
+  assert_that(length(ids)==length(new_values))
+  assert_that(length(ids)==length(new_values))
+  assert_that(length(ids)==length(name) | length(name)==1)
+  assertthat::assert_that(assertthat::is.string(data_id_column_name))
+  more_vars<-list(...)
+
+if(is.null(info)){info<-rep("",length(ids))}
+    df<-tibble::tibble(ids=ids,variables=variables,new_values=new_values,name = name,info=info)
+    df<-do.call(c,list(df,more_vars)) %>% (tibble::as_tibble)
+    attributes(df)$data_id_column_name<-data_id_column_name
+  class(df)<-c("clog_cleaninglog",class(df))
+
+  df
+}
+
+
+
+
+#' @export
+print.clog_cleaninglog<-function(x){
+
+  x_tibble<-tibble::as_tibble(x)
+  print(x_tibble)
+  # class(x_tibble)<-class(x_tibble)[-which(class(x_tibble)=="clog_cleaninglog")]
+  # x_tibble[[attributes(x)$cleaninglog$issue_name_column]] %>% table %>% (knitr::kable) %>% print
+  message(crayon::green(paste("cleaninglog with", nrow(x)," rows")))
+  return(invisible(x))
+}
+
+
+
+
+change_df_by_variables_and_ids <-function(data, change_variables, change_ids, data_id_column,new_values){
+
+
+  change_variables<-as.character(change_variables)
+  change_ids<-as.character(change_ids)
+  data_ids<-data[[data_id_column]]
+  data_ids<-as.character(data_ids)
+  data_id_column<-make.names(data_id_column)
+
+  names(data)<-make.names(names(data))
+  change_variables<-make.names(change_variables)
+
+  cl<-tibble::tibble(change_variables,change_ids,data_id_column,new_values)
+  cl<-purrr::map(cl,function(x){if(is.factor(x)){as.character(x)};x}) %>% as_tibble
+
+  non_unique_change_ids<-change_ids[change_ids %in% data_ids[duplicated(data_ids)]] %>% unique
+  if(length(non_unique_change_ids)!=0){
+    warning("some change_ids are not unique in the data ids - ignoring these.")
+    cl<-cl[!(change_ids %in% non_unique_change_ids),]
+
+  }
+
+  unknown_ids<-(!(change_ids %in% data[[data_id_column]]))
+  if(any(unknown_ids)){warning(paste(
+    "ignoring", length(which(unknown_ids)), "cleaning log rows because ID not found in data"))
+    cl<-cl[!unknown_ids,]
+    }
+
+
+  unknown_variables<-(!(cl$change_variables %in% names(data)))
+  if(any(unknown_variables)){
+    warning(paste(
+    "ignoring", length(which(unknown_variables)), "cleaning log rows because variable name not found in data"))
+    cl<-cl[!unknown_variables,]
+
+    }
+
+  change_ids<-cl$change_ids
+  change_variables<-cl$change_variables
+  new_values<-cl$new_values
+
+  rows_to_change<-match(change_ids,data_ids)
+  cols_to_change<-match(change_variables,colnames(data))
+
+  old_values<-purrr:::pmap(list(rows_to_change,cols_to_change),function(row,col){
+    data[row,col]
+  }) %>% unlist
+
+  change_value<-function(row,col,new){
+
+    data[row,col]<<-new
+  }
+  mapply(change_value,rows_to_change,cols_to_change,new_values)
+
+  changelog<-tibble(change_variables,change_ids,old_values,new_values,data_id_column)
+
+  attributes(data)$changelog<-rbind(attributes(data)$changelog,changelog)
+  class(data)<-c("clog_modified_data", class(data)) %>% unique
+  data
+}
+
+#' @export
+print.clog_modified_data<-function(x){
+  log<-attributes(x)$changelog
+  class(x)<-class(x)[class(x)!="clog_modified_data"]
+  print(x)
+  changed_value_to_value<-which(log$old_values!=log$new_values)
+  changed_na<-which(is.na(log$old_values)!=is.na(log$new_values))
+  num_changed<-length(c(changed_value_to_value,changed_na))
+  cat(paste0(crayon::yellow(num_changed," values modified; show edits with clog_changelog()\n")))
+}
+
+#' make changes to raw dataset based on cleaninglog (see `cleaninglog()` )
+#' @param df a data.frame / tibble
+#' @param cleaninglog a cleaninglog object create with `cleaninglog()`
+#' @return the original dataframe (`df`) modified based on the cleaning log.
+#' @export
+clog_clean<-function(df,cleaninglog){
+  df<-tibble::as_tibble(df)
+  attributes(df)$raw_data <- df
+  df<-change_df_by_variables_and_ids(data = df,
+                                 change_variables = cleaninglog$variables,
+                                 change_ids = cleaninglog$ids,
+                                 data_id_column = attributes(cleaninglog)$data_id_column_name,
+                                 new_values = cleaninglog$new_values)
+
+  class(df)<-c("clog_modified_data", class(df)) %>% unique
+  df
+
+}
+
+
+#' reverse changes applied based on cleaning log
+#' @param df a data frame modified with `clog_clean()`
+#' @return the original cleaning log applied in reverse.
+#' @export
+clog_reverse<-function(df){
+  log<-attributes(df)$changelog
+  df<-change_df_by_variables_and_ids(df,
+                                     change_variables = log$change_variables,
+                                     change_ids = log$change_ids,
+                                     data_id_column = log$data_id_column[1],
+                                     new_values = log$old_values)
+
+  attributes(df)$changelog<-NULL
+  # class(df)<-class(df)[class(df)!="clog_modified_data"]
+  df
+}
+
+#' extract cleaninglog from dataset modified with `clog_clean()`
+#' @param df a dataset modified with `clog_clean()`
+#' @return the cleaninglog as it was applied to `df`
+#' @export
+clog_get_cleaninglog<-function(df){
+  attributes(df)$changelog
+}
+
+
+
+
+
+
+
+
+

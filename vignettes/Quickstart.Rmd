@@ -41,6 +41,7 @@ my_cleaninglog<-data.frame(rowids = c("x8749f4", "f839jzz", "hla84s"),
                            dataset_variables = c("var_A","var_A","var_B"),
                            changed_to = c("maybe","no", NA),
                            found_via = c("manual inspection","manual inspection","manual inspection"),
+                           requires_edit = c(T,F,T),
                            stringsAsFactors = F)
 
 my_dataset<-data.frame(uuid= c("x8749f4", "f839jzz", "hla84s","d88f30","bkoe4u"),
@@ -88,6 +89,7 @@ my_cleaninglog <- cleaninglog(ids = my_cleaninglog$rowids,
                               variables = my_cleaninglog$dataset_variables,
                               new_values = my_cleaninglog$changed_to,
                               name = my_cleaninglog$found_via,
+                              change = my_cleaninglog$requires_edit,
                               data_id_column_name = "uuid")
 ```
 

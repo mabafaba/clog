@@ -3,23 +3,25 @@
 #' @param ids vector of ids that can be matched with the dataset (i.e. uuids)
 #' @param variabels vector of variable names (should match data column headers)
 #' @param new_values vector of new (corrected) values. If no change should be made, this must be set to the original value
+#' @param change vector of logical values: whether a row in the cleaninglog should change data or not (the cleaninglog may contain rows that turned out to be ok and not need any change). Should be the same length as the other vectors. Defaults to `TRUE`.
 #' @param data_id_column_name the name of the column in the dataset with ids matching the values in `ids`
 #' @param info (optional): a character vector with additional information about the cleaning log
 #' @param name a vector name of the data check that produced the
 #' @param ... additional vectors or data.frames to be added to the cleaning log.
 #' @return a `clog` cleaninglog objects to be used with `clog_clean()` etc.
 #' @export
-cleaninglog <- function(ids, variables, new_values, data_id_column_name,name = "default_cleaninglog_element_name",info=NULL,...) {
+cleaninglog <- function(ids, variables, new_values, change = TRUE, data_id_column_name,name = "default_cleaninglog_element_name",info=NULL,...) {
 
   assert_that(length(ids)==length(variables))
   assert_that(length(ids)==length(new_values))
   assert_that(length(ids)==length(new_values))
+  assert_that(length(ids)==length(change))
   assert_that(length(ids)==length(name) | length(name)==1)
   assertthat::assert_that(assertthat::is.string(data_id_column_name))
   more_vars<-list(...)
 
 if(is.null(info)){info<-rep("",length(ids))}
-    df<-tibble::tibble(ids=ids,variables=variables,new_values=new_values,name = name,info=info)
+    df<-tibble::tibble(ids=as.character(ids),variables=as.character(variables),new_values=new_values,change = as.logical(change), name = as.character(name),info=as.character(info))
     df<-do.call(c,list(df,more_vars)) %>% (tibble::as_tibble)
     attributes(df)$data_id_column_name<-data_id_column_name
   class(df)<-c("clog_cleaninglog",class(df))
@@ -44,11 +46,13 @@ print.clog_cleaninglog<-function(x){
 
 
 
-change_df_by_variables_and_ids <-function(data, change_variables, change_ids, data_id_column,new_values){
+change_df_by_variables_and_ids <-function(data, change_variables, change_ids, data_id_column,new_values, change){
 
 
   change_variables<-as.character(change_variables)
   change_ids<-as.character(change_ids)
+  change <- as.logical(change)
+  change[is.na(change)]<-TRUE
   data_ids<-data[[data_id_column]]
   data_ids<-as.character(data_ids)
   data_id_column<-make.names(data_id_column)
@@ -56,7 +60,7 @@ change_df_by_variables_and_ids <-function(data, change_variables, change_ids, da
   names(data)<-make.names(names(data))
   change_variables<-make.names(change_variables)
 
-  cl<-tibble::tibble(change_variables,change_ids,data_id_column,new_values)
+  cl<-tibble::tibble(change_variables,change_ids,data_id_column,new_values,change)
   cl<-purrr::map(cl,function(x){if(is.factor(x)){as.character(x)};x}) %>% as_tibble
 
   non_unique_change_ids<-change_ids[change_ids %in% data_ids[duplicated(data_ids)]] %>% unique
@@ -80,10 +84,10 @@ change_df_by_variables_and_ids <-function(data, change_variables, change_ids, da
     cl<-cl[!unknown_variables,]
 
     }
-
-  change_ids<-cl$change_ids
-  change_variables<-cl$change_variables
-  new_values<-cl$new_values
+  cl_to_change<-cl[cl$change,]
+  change_ids<-cl_to_change$change_ids
+  change_variables<-cl_to_change$change_variables
+  new_values<-cl_to_change$new_values
 
   rows_to_change<-match(change_ids,data_ids)
   cols_to_change<-match(change_variables,colnames(data))
@@ -128,7 +132,8 @@ clog_clean<-function(df,cleaninglog){
                                  change_variables = cleaninglog$variables,
                                  change_ids = cleaninglog$ids,
                                  data_id_column = attributes(cleaninglog)$data_id_column_name,
-                                 new_values = cleaninglog$new_values)
+                                 new_values = cleaninglog$new_values,
+                                 change = cleaninglog$change)
 
   class(df)<-c("clog_modified_data", class(df)) %>% unique
   df

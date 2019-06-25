@@ -88,7 +88,7 @@ change_df_by_variables_and_ids <-function(data, change_variables, change_ids, da
   change_ids<-cl_to_change$change_ids
   change_variables<-cl_to_change$change_variables
   new_values<-cl_to_change$new_values
-
+  change <- cl_to_change$change
   rows_to_change<-match(change_ids,data_ids)
   cols_to_change<-match(change_variables,colnames(data))
 
@@ -102,7 +102,7 @@ change_df_by_variables_and_ids <-function(data, change_variables, change_ids, da
   }
   mapply(change_value,rows_to_change,cols_to_change,new_values)
 
-  changelog<-tibble(change_variables,change_ids,old_values,new_values,data_id_column)
+  changelog<-tibble(change_variables,change_ids,old_values,new_values,change,data_id_column)
 
   attributes(data)$changelog<-rbind(attributes(data)$changelog,changelog)
   class(data)<-c("clog_modified_data", class(data)) %>% unique
@@ -151,7 +151,8 @@ clog_reverse<-function(df){
                                      change_variables = log$change_variables,
                                      change_ids = log$change_ids,
                                      data_id_column = log$data_id_column[1],
-                                     new_values = log$old_values)
+                                     new_values = log$old_values,
+                                     change = log$change)
 
   attributes(df)$changelog<-NULL
   # class(df)<-class(df)[class(df)!="clog_modified_data"]

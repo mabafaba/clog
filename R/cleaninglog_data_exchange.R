@@ -23,7 +23,10 @@ cl<-cleaninglog
 #' @param data the dataset to select variabes from that should be added to the cleaning log
 #' @param cleaninglog the cleaninglog (see `cleaninglog()` )
 #' @param ... names of the variables to be added from the dataset to the cleaninglog (without quotes!)
-#' @example clog_data_to_cleaninglog(mydata,my_cleaninglog, a_data_variable_name, another_data_variable_name, `a data variable name with spaces`)
+#' @examples
+#' \dontrun{
+#' clog_data_to_cleaninglog(mydata,my_cleaninglog, a_data_variable_name, another_data_variable_name, `a data variable name with spaces`)
+#' }
 #' @return the original `data` with one additional column per unique value cleaninglog `name`. The `name` becomes the column name. For each row in the data, the new column is `TRUE` if a cleaninglog element with that name was listed for the respective row
 #' @details returning `NA`` if the id in the cleaning log can not be found in the data
 #' @export

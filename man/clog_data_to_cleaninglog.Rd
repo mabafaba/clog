@@ -22,3 +22,8 @@ add cleaninglog elements as columns to a datset
 \details{
 returning `NA`` if the id in the cleaning log can not be found in the data
 }
+\examples{
+\dontrun{
+clog_data_to_cleaninglog(mydata,my_cleaninglog, a_data_variable_name, another_data_variable_name, `a data variable name with spaces`)
+}
+}
